@@ -6,8 +6,45 @@
 
 #include "jd_IDLib.h"
 #include "jd_LEDLib.h"
-#include "ServoEasing.hpp"
 #include "jd_timing.h"
+
+//************************  ServoEasing setup ************************************
+// Must specify this BEFORE the include of "ServoEasing.hpp"
+//#define USE_PCA9685_SERVO_EXPANDER    // Activating this enables the use of the PCA9685 I2C expander chip/board.
+//#define USE_SOFT_I2C_MASTER           // Saves 1756 bytes program memory and 218 bytes RAM compared with Arduino Wire
+//#define USE_SERVO_LIB                 // If USE_PCA9685_SERVO_EXPANDER is defined, Activating this enables force additional using of regular servo library.
+//#define USE_LEIGHTWEIGHT_SERVO_LIB    // Makes the servo pulse generating immune to other libraries blocking interrupts for a longer time like SoftwareSerial, Adafruit_NeoPixel and DmxSimple.
+//#define PROVIDE_ONLY_LINEAR_MOVEMENT  // Activating this disables all but LINEAR movement. Saves up to 1540 bytes program memory.
+#define DISABLE_COMPLEX_FUNCTIONS // Activating this disables the SINE, CIRCULAR, BACK, ELASTIC, BOUNCE and PRECISION easings. Saves up to 1850 bytes program memory.
+#define MAX_EASING_SERVOS 2
+//#define DISABLE_MICROS_AS_DEGREE_PARAMETER // Activating this disables microsecond values as (target angle) parameter. Saves 128 bytes program memory.
+//#define DISABLE_MIN_AND_MAX_CONSTRAINTS    // Activating this disables constraints. Saves 4 bytes RAM per servo but strangely enough no program memory.
+//#define DISABLE_PAUSE_RESUME               // Activating this disables pause and resume functions. Saves 5 bytes RAM per servo.
+//#define DEBUG                              // Activating this enables generate lots of lovely debug output for this library.
+
+//#define PRINT_FOR_SERIAL_PLOTTER           // Activating this enables generate the Arduino plotter output from ServoEasing.hpp.
+/*
+ * Specify which easings types should be available.
+ * If no easing is defined, all easings are active.
+ * This must be done before the #include "ServoEasing.hpp"
+ */
+//#define ENABLE_EASE_QUADRATIC
+#define ENABLE_EASE_CUBIC
+//#define ENABLE_EASE_QUARTIC
+//#define ENABLE_EASE_SINE
+//#define ENABLE_EASE_CIRCULAR
+//#define ENABLE_EASE_BACK
+//#define ENABLE_EASE_ELASTIC
+//#define ENABLE_EASE_BOUNCE
+//#define ENABLE_EASE_PRECISION
+//#define ENABLE_EASE_USER
+
+#include "ServoEasing.hpp"
+
+#define START_DEGREE_VALUE 0 // The degree value written to the servo at time of attach.
+#define SERVO_SPEED 40       // Servo in degrees per second
+
+//************************ End of Servo Easing setup ************************************
 
 // General Paramaters
 const int MAX_DEVICE_ID_LEN = 20;
@@ -16,6 +53,7 @@ char deviceID[MAX_DEVICE_ID_LEN];
 // LED blink counts
 #define kErrWiFiFailure 3
 #define kErrWiFiGood 4
+#define kErrAzServoFailure 5
 
 // WiFi SSID & password are set on Setup
 const int MAXSSIDLEN = 32;          // Note this is 31 + null terminator
@@ -81,12 +119,17 @@ void setup()
   }
 
   // Setup the servos
-  AzmithTrackingServo.attach(PIN_D5, 1); // Set pin to use and initial angle
-  jd_delay(500);                         // Give servo time to get to initial posn
+  AzmithTrackingServo.setSpeed(SERVO_SPEED);   // Set the default speed for the servo
+  if (AzmithTrackingServo.attach(PIN_D5, START_DEGREE_VALUE) == INVALID_SERVO) // Set pin to use and initial angle
+  {
+    // Bad servo connection if here
+    DUMP("Cannot connect to Azmith Servo");
+    blinkLED(ESP32_LED_BUILTIN, kErrAzServoFailure, true); // system will sit here blinking the LED
+  }
+  jd_delay(500); // Give servo time to get to initial posn
 
   // Test the servos
-  AzmithTrackingServo.easeTo(179, 40); // Move to 179 degrees at 40 degrees per second, blocking call
-  // jd_delay(10000);  // Give servo time to get to position .. not needed with blocking call above
+  AzmithTrackingServo.easeTo(179, SERVO_SPEED); // Move to 179 degrees at default degrees per second, blocking call
 }
 
 void loop()
