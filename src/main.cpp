@@ -8,6 +8,8 @@
 #include "jd_LEDLib.h"
 #include "jd_timing.h"
 
+#include "SolarCalculator.h"  // All calculations assume time inputs in Coordinated Universal Time (UTC)
+
 //************************  ServoEasing setup ************************************
 // Must specify this BEFORE the include of "ServoEasing.hpp"
 //#define USE_PCA9685_SERVO_EXPANDER    // Activating this enables the use of the PCA9685 I2C expander chip/board.
@@ -44,6 +46,8 @@
 #define START_DEGREE_VALUE 0 // The degree value written to the servo at time of attach.
 #define SERVO_SPEED 40       // Servo in degrees per second
 
+ServoEasing AzmithTrackingServo;
+
 //************************ End of Servo Easing setup ************************************
 
 // General Paramaters
@@ -54,6 +58,8 @@ char deviceID[MAX_DEVICE_ID_LEN];
 #define kErrWiFiFailure 3
 #define kErrWiFiGood 4
 #define kErrAzServoFailure 5
+#define kErrGPSInitFailure 6
+#define kErrGPSReadFailure 7
 
 // WiFi SSID & password are set on Setup
 const int MAXSSIDLEN = 32;          // Note this is 31 + null terminator
@@ -63,8 +69,11 @@ char esp_password[MAXPASSLEN];      // Content can be changed
 const char *SSID_PREFIX = "ESZ_";   // This format pointer means data CANNOT be changed
 const char *PASSWORD_PREFIX = "JD"; // This format pointer means data CANNOT be changed
 
-// Servo stuff
-ServoEasing AzmithTrackingServo;
+
+
+// GPS stuff
+#include "jd_GPS.h"
+int gps_dev_status = 0;
 
 void setup()
 {
@@ -87,7 +96,9 @@ void setup()
 
   // reset settings - wipe stored credentials for testing
   // these are stored by the esp library
-  wm.resetSettings();
+  //******************** Uncomment next line for For Debugging +++++++
+  //wm.resetSettings();
+  //********************  +++++++
 
   // Set the SSID. Password and deviceid up
   getUniqueID(ssid, MAXSSIDLEN - 1, SSID_PREFIX);
@@ -119,7 +130,7 @@ void setup()
   }
 
   // Setup the servos
-  AzmithTrackingServo.setSpeed(SERVO_SPEED);   // Set the default speed for the servo
+  AzmithTrackingServo.setSpeed(SERVO_SPEED);                                   // Set the default speed for the servo
   if (AzmithTrackingServo.attach(PIN_D5, START_DEGREE_VALUE) == INVALID_SERVO) // Set pin to use and initial angle
   {
     // Bad servo connection if here
@@ -128,12 +139,41 @@ void setup()
   }
   jd_delay(500); // Give servo time to get to initial posn
 
-  // Test the servos
   AzmithTrackingServo.easeTo(179, SERVO_SPEED); // Move to 179 degrees at default degrees per second, blocking call
+
+  // Initialise GPS and wait to get a valid location
+  gps_dev_status = initGPS(UART1, 9600, SERIAL_8N1, PIN_D17, PIN_D16); // Pin 16 (yellow) to GPS rx pin, Pin 17 (green) to GPS tx pin
+
+  if (gps_dev_status != kGoodGPS)
+  {
+    TRACE();
+    DUMP("Bad GPS status");
+    DUMP(gps_dev_status);
+    blinkLED(ESP32_LED_BUILTIN, kErrGPSInitFailure, true); // system will sit here blinking the LED
+  }
 }
 
 void loop()
 {
   // put your main code here, to run repeatedly:
-  // TRACE();
+  TRACE();
+  // This displays information every time a new sentence is correctly encoded.
+  gps_dev_status = ReadGPS();
+  if (gps_dev_status == kGoodGPSRead)
+  {
+    testGPS();
+  }
+  else if (gps_dev_status == kNoGPSFixYet)
+  {
+    DUMP("No GPS FIX Yet");
+  }
+  else
+  {
+    TRACE();
+    DUMP("GPS read failed");
+    DUMP(gps_dev_status);
+    blinkLED(ESP32_LED_BUILTIN, kErrGPSReadFailure, true); // system will sit here blinking the LED
+  }
+
+  jd_delay(5000);
 }

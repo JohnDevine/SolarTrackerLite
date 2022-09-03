@@ -1,5 +1,8 @@
 #include "jd_GPS.h"
 
+TinyGPSPlus gps;
+HardwareSerial *SerialGPS;
+
 // Initialise the GPS unit
 // 1. set up UART
 // 2. Get gps data
@@ -51,6 +54,11 @@ int ReadGPS()
   if (gps.location.isValid())
   {
     return kGoodGPSRead;
+  }
+  // If GPS is good BUT we have not got a fix return "No Fix Yet" status
+  if (gps.charsProcessed() > 0)
+  {
+    return kNoGPSFixYet;
   }
   TRACE();
   DUMP(gps.charsProcessed());
@@ -119,4 +127,3 @@ double GPS_Get_Alt()
   }
   return (kGPSBadData);
 }
-

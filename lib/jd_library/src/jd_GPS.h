@@ -12,15 +12,14 @@
     #define kUARTFailed 10 // UART Failed to come up
     #define kGoodGPSRead 15 // GPS read is good and llocation is valid
     #define kReadFailed 20 // GPS read failed
+    #define kNoGPSFixYet 25 // GPS is reading OK but no fix yet
     #define kGPSBadData 555 // Define bad data (HaHaHa)
+
 
     // Serial Ports
     #define UART0 0 // programming uart port on ESP32
     #define UART1 1 
     #define UART2 2
-
-    TinyGPSPlus gps;
-    HardwareSerial *SerialGPS;
 
     // const int GPSWait = 600000; // How long to wait for GPS to sync in milli seconds
 
