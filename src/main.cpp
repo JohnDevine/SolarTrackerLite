@@ -6,9 +6,10 @@
 
 #include "jd_IDLib.h"
 #include "jd_LEDLib.h"
-#include "jd_timing.h"
+#include "jd_timing.h" // Sets up time etc
+#include <jd_timeFunctions.hpp>
 
-#include "SolarCalculator.h"  // All calculations assume time inputs in Coordinated Universal Time (UTC)
+#include "SolarCalculator.h" // All calculations assume time inputs in Coordinated Universal Time (UTC)
 
 //************************  ServoEasing setup ************************************
 // Must specify this BEFORE the include of "ServoEasing.hpp"
@@ -54,12 +55,6 @@ ServoEasing AzmithTrackingServo;
 const int MAX_DEVICE_ID_LEN = 20;
 char deviceID[MAX_DEVICE_ID_LEN];
 
-// LED blink counts
-#define kErrWiFiFailure 3
-#define kErrWiFiGood 4
-#define kErrAzServoFailure 5
-#define kErrGPSInitFailure 6
-#define kErrGPSReadFailure 7
 
 // WiFi SSID & password are set on Setup
 const int MAXSSIDLEN = 32;          // Note this is 31 + null terminator
@@ -68,8 +63,6 @@ const int MAXPASSLEN = 64;          // Note this is 63 + null terminator
 char esp_password[MAXPASSLEN];      // Content can be changed
 const char *SSID_PREFIX = "ESZ_";   // This format pointer means data CANNOT be changed
 const char *PASSWORD_PREFIX = "JD"; // This format pointer means data CANNOT be changed
-
-
 
 // GPS stuff
 #include "jd_GPS.h"
@@ -97,7 +90,7 @@ void setup()
   // reset settings - wipe stored credentials for testing
   // these are stored by the esp library
   //******************** Uncomment next line for For Debugging +++++++
-  //wm.resetSettings();
+  // wm.resetSettings();
   //********************  +++++++
 
   // Set the SSID. Password and deviceid up
@@ -151,12 +144,23 @@ void setup()
     DUMP(gps_dev_status);
     blinkLED(ESP32_LED_BUILTIN, kErrGPSInitFailure, true); // system will sit here blinking the LED
   }
+
+// Setup time stuff
+#if (ARDUINOTRACE_ENABLE)
+  initEZTime(DEBUG, (uint8_t) GPS_Get_time_hour(), (uint8_t) GPS_Get_time_minute(),(uint8_t) GPS_Get_time_second(), GPS_Get_date_day(), GPS_Get_date_month(), GPS_Get_date_year()); // Debug level can be set to NONE, ERROR, INFO, DEBUG
+#else
+  initEZTime(NONE, (uint8_t) GPS_Get_time_hour(), (uint8_t) GPS_Get_time_minute(),(uint8_t) GPS_Get_time_second(), GPS_Get_date_day(), GPS_Get_date_month(), GPS_Get_date_year()); // Debug level can be set to NONE, ERROR, INFO, DEBUG
+#endif
+
+myTZ.setTime((uint8_t) GPS_Get_time_hour(), (uint8_t) GPS_Get_time_minute(),(uint8_t) GPS_Get_time_second(), GPS_Get_date_day(), GPS_Get_date_month(), GPS_Get_date_year());
+
 }
 
 void loop()
 {
   // put your main code here, to run repeatedly:
   TRACE();
+  events();  // Allows events set by ezTime to be executed.
   // This displays information every time a new sentence is correctly encoded.
   gps_dev_status = ReadGPS();
   if (gps_dev_status == kGoodGPSRead)

@@ -54,5 +54,20 @@ lib_deps =
     ESPAsync_WiFiManager
     get the second one khoih-prog/ESPAsync_WiFiManager (note the -) or you will get duplicate definition errors
 
+When using ezTime library
+    // **** NOTE to drop NTP and network connection you need to modify ezTime.h
+    // and comment out 
+    // // #define EZTIME_NETWORK_ENABLE
 
+
+---
+# Error Codes
+---
+## LED blink counts
+- #define kErrWiFiFailure 3
+- #define kErrWiFiGood 4
+- #define kErrAzServoFailure 5
+- #define kErrGPSInitFailure 6
+- #define kErrGPSReadFailure 7
+- #define kWaitingOnGPSFix 8
 

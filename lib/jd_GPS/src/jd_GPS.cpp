@@ -51,7 +51,7 @@ int ReadGPS()
   }
 
   // check to see if we have valid location data
-  if (gps.location.isValid())
+  if (gps.location.isValid() && gps.date.isValid())  // Note that the location data may be valid before the date comes through
   {
     return kGoodGPSRead;
   }
@@ -69,6 +69,20 @@ int ReadGPS()
   return kReadFailed;
 }
 
+// Keep reading the GPS until we get a lock and valid data
+int ReadTillValidGPS()
+{
+  TRACE();
+  int GPSStatus;
+  while (GPSStatus = ReadGPS() == kNoGPSFixYet)
+  {
+    TRACE();
+    blinkLED(ESP32_LED_BUILTIN, kWaitingOnGPSFix, false); // let user know what is going on
+    jd_delay(1000); // Wait a second to give GPS time to read
+  }
+  return GPSStatus;
+}
+
 // Get latitude and longitude
 void testGPS()
 {
@@ -80,10 +94,19 @@ void testGPS()
   DUMP(gps.location.lat());
   DUMP(gps.location.lng());
   DUMP(gps.location.isValid());
-  DUMP(gps.date.value());
-  DUMP(gps.time.value());
-  DUMP(gps.time.isValid());
+
   DUMP(gps.date.isValid());
+  DUMP(gps.date.value());
+  DUMP(gps.date.day());
+  DUMP(gps.date.month());
+  DUMP(gps.date.year());
+
+  DUMP(gps.time.isValid());
+  DUMP(gps.time.hour());
+  DUMP(gps.time.minute());
+  DUMP(gps.time.second());
+  DUMP(gps.time.centisecond());
+
   DUMP(gps.satellites.value());
   DUMP(gps.satellites.isValid());
   DUMP(gps.hdop.value());
@@ -94,12 +117,27 @@ void testGPS()
   DUMP(gps.course.isValid());
   DUMP(gps.speed.kmph());
   DUMP(gps.speed.isValid());
+
+  //***************** From Functions
+
+  DUMP(GPS_Get_Lat());
+  DUMP(GPS_Get_Lng());
+  DUMP(GPS_Get_Alt());
+
+  DUMP(GPS_Get_date_day());
+  DUMP(GPS_Get_date_month());
+  DUMP(GPS_Get_date_year());
+
+  DUMP(GPS_Get_time_hour());
+  DUMP(GPS_Get_time_minute());
+  DUMP(GPS_Get_time_second());
+  DUMP(GPS_Get_time_centisecond());
 }
 
 // Get the latitude
 double GPS_Get_Lat()
 {
-  ReadGPS();
+  ReadTillValidGPS();
   if (gps.location.isValid())
   {
     return (gps.location.lat());
@@ -110,7 +148,7 @@ double GPS_Get_Lat()
 // Get the longitude
 double GPS_Get_Lng()
 {
-  ReadGPS();
+  ReadTillValidGPS();
   if (gps.location.isValid())
   {
     return (gps.location.lng());
@@ -120,10 +158,85 @@ double GPS_Get_Lng()
 // Get the altitude
 double GPS_Get_Alt()
 {
-  ReadGPS();
+  ReadTillValidGPS();
   if (gps.altitude.isValid())
   {
     return (gps.altitude.meters());
+  }
+  return (kGPSBadData);
+}
+
+// Get the date_day
+int GPS_Get_date_day()
+{
+  ReadTillValidGPS();
+  if (gps.date.isValid())
+  {
+    return (gps.date.day());
+  }
+  return (kGPSBadData);
+}
+
+// Get the date_month
+int GPS_Get_date_month()
+{
+  ReadTillValidGPS();
+  if (gps.date.isValid())
+  {
+    return (gps.date.month());
+  }
+  return (kGPSBadData);
+}
+
+// Get the date_year
+int GPS_Get_date_year()
+{
+  ReadTillValidGPS();
+  if (gps.date.isValid())
+  {
+    return (gps.date.year());
+  }
+  return (kGPSBadData);
+}
+
+// Get the time_hour
+int GPS_Get_time_hour()
+{
+  ReadTillValidGPS();
+  if (gps.time.isValid())
+  {
+    return (gps.time.hour());
+  }
+  return (kGPSBadData);
+}
+// Get the time_minute
+int GPS_Get_time_minute()
+{
+  ReadTillValidGPS();
+  if (gps.time.isValid())
+  {
+    return (gps.time.minute());
+  }
+  return (kGPSBadData);
+}
+// Get the time_second
+int GPS_Get_time_second()
+{
+  ReadTillValidGPS();
+  if (gps.time.isValid())
+  {
+    return (gps.time.second());
+  }
+  return (kGPSBadData);
+}
+
+// Get the time_centisecond
+int GPS_Get_time_centisecond()
+{
+  ReadTillValidGPS();
+  if (gps.time.isValid())
+  {
+    return (gps.time.centisecond());
   }
   return (kGPSBadData);
 }

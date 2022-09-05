@@ -10,6 +10,15 @@
     #endif
     
     #include <ArduinoTrace.h>
+
+    // LED blink counts
+#define kErrWiFiFailure 3
+#define kErrWiFiGood 4
+#define kErrAzServoFailure 5
+#define kErrGPSInitFailure 6
+#define kErrGPSReadFailure 7
+#define kWaitingOnGPSFix 8
+
     #ifdef ESP32
         // See file .../hardware/espressif/esp32/variants/(esp32|doitESP32devkitV1)/pins_arduino.h
 

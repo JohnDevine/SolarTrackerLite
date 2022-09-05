@@ -1,7 +1,17 @@
+/************************************************************************/
+/** NOTE: Include this header in the main.cpp and only once.           **/
+/** For all other includes use jd_timeFunctions.h                      **/
+/************************************************************************/
 
-#include <jd_timeFunctions.h>
+#include "jd_timeFunctions.h"
+
 
 Timezone myTZ;
+
+void jd_setTime(int EZHour, int EZMinute, int EZSecond, int EZDay, int EZMonth, int EZYear)
+{
+  myTZ.setTime(EZHour, EZMinute, EZSecond, EZDay, EZMonth, EZYear);
+}
 
 void testTime()
 {
@@ -35,7 +45,7 @@ void testTime()
 //	ERROR,
 //	INFO,
 //	DEBUG
-void initNTPsetTimezone(ezDebugLevel_t debug_level)
+void initEZTime(ezDebugLevel_t debug_level, uint8_t EZDay, uint8_t EZMonth, uint16_t EZYear, uint8_t EZHour, uint8_t EZMinute, uint8_t EZSecond)
 {
   TRACE();
   // Set up time server
@@ -46,14 +56,22 @@ void initNTPsetTimezone(ezDebugLevel_t debug_level)
 #else
   setDebug(NONE);
 #endif
-  setInterval(NTPSERVER_QUERY_INTERVAL_SECONDS); // Set the query to NTP server in seconds
-  waitForSync();                                 // Wait for NTP time sync
+  jd_setTime(EZHour, EZMinute, EZSecond, EZDay, EZMonth, EZYear);
+
+  // setInterval(NTPSERVER_QUERY_INTERVAL_SECONDS); // Set the query to NTP server in seconds
+  // waitForSync();                                // Wait for NTP time sync
+
+  // *****+++++++++++++++++++++++++ Sort out below problem later!!!!!!!
+  // myTZ.setInterval();  // disable NTP server lookup (I use the GPS to get the time)
   // Provide official timezone names
   // https://en.wikipedia.org/wiki/List_of_tz_database_time_zones
-  myTZ.setLocation(MY_TIMEZONE);
+  // myTZ.setLocation(MY_TIMEZONE);
   // Wait a little bit to not trigger DDoS protection on server
   // See https://github.com/ropg/ezTime#timezonedropnl
-  delay(5000);
+  // delay(5000);
+
+  // Get the time from the GPS unit
+
   testTime(); // Note that ARDUINOTRACE_ENABLE must be set to true in the sketch to see this output
 }
 void jd_getCurrentTime(char *out_time, int maxlen, String format)
@@ -67,7 +85,7 @@ void jd_getCurrentTime(char *out_time, int maxlen, String format)
   tmp_time.toCharArray(out_time, tmp_time.length() + 1);
   Serial.println("Payload String in get: " + tmp_time);
   Serial.println("Length: ");
-   Serial.print(tmp_time.length());
+  Serial.print(tmp_time.length());
   Serial.println("Payload char * in get: ");
   Serial.print(out_time);
 }
