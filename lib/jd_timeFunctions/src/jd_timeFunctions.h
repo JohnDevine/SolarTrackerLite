@@ -18,6 +18,8 @@
 #define MY_TIMEZONE "Asia/Bangkok"
 #define NTPSERVER_QUERY_INTERVAL_SECONDS 60 * 60
 
+extern Timezone myTZ;
+
 // if ARDUINOTRACE_ENABLE = true output to the console the current time in many forms.
 void testTime();
 

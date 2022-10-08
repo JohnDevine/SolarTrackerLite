@@ -5,9 +5,6 @@
 
 #include "jd_timeFunctions.h"
 
-
-Timezone myTZ;
-
 void jd_setTime(int EZHour, int EZMinute, int EZSecond, int EZDay, int EZMonth, int EZYear)
 {
   myTZ.setTime(EZHour, EZMinute, EZSecond, EZDay, EZMonth, EZYear);

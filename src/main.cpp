@@ -6,10 +6,18 @@
 
 #include "jd_IDLib.h"
 #include "jd_LEDLib.h"
-#include "jd_timing.h" // Sets up time etc
+#include "jd_timing.h" // Provides interruptable delays
+
+//********************  Date and time functions *********************
 #include <jd_timeFunctions.hpp>
 
-#include "SolarCalculator.h" // All calculations assume time inputs in Coordinated Universal Time (UTC)
+Timezone myTZ;
+Timezone GMTTZ;
+
+//********************  End of Date and time functions *********************
+
+// Calculations for sun posn based on time, lat, long
+#include "jd_Sun.h"
 
 //************************  ServoEasing setup ************************************
 // Must specify this BEFORE the include of "ServoEasing.hpp"
@@ -54,7 +62,6 @@ ServoEasing AzmithTrackingServo;
 // General Paramaters
 const int MAX_DEVICE_ID_LEN = 20;
 char deviceID[MAX_DEVICE_ID_LEN];
-
 
 // WiFi SSID & password are set on Setup
 const int MAXSSIDLEN = 32;          // Note this is 31 + null terminator
@@ -123,16 +130,36 @@ void setup()
   }
 
   // Setup the servos
-  AzmithTrackingServo.setSpeed(SERVO_SPEED);                                   // Set the default speed for the servo
+  AzmithTrackingServo.setSpeed(SERVO_SPEED);  
+  AzmithTrackingServo.setReverseOperation(true);                             // Servo is upside down
   if (AzmithTrackingServo.attach(PIN_D5, START_DEGREE_VALUE) == INVALID_SERVO) // Set pin to use and initial angle
   {
     // Bad servo connection if here
     DUMP("Cannot connect to Azmith Servo");
     blinkLED(ESP32_LED_BUILTIN, kErrAzServoFailure, true); // system will sit here blinking the LED
   }
+  
   jd_delay(500); // Give servo time to get to initial posn
 
-  AzmithTrackingServo.easeTo(179, SERVO_SPEED); // Move to 179 degrees at default degrees per second, blocking call
+  //******** Test servo
+  AzmithTrackingServo.easeTo(0, SERVO_SPEED);
+  DUMP("0 degrees");
+  jd_delay(1000);
+  AzmithTrackingServo.easeTo(45, SERVO_SPEED);
+  DUMP("45 degrees");
+  jd_delay(1000);
+  AzmithTrackingServo.easeTo(90, SERVO_SPEED);
+  DUMP("90 degrees");
+  jd_delay(1000);
+  AzmithTrackingServo.easeTo(135, SERVO_SPEED);
+  DUMP("135 degrees");
+  jd_delay(1000);
+  AzmithTrackingServo.easeTo(180, SERVO_SPEED);
+  DUMP("180 degrees");
+  jd_delay(1000);
+ //******** End of Test servo
+
+  // AzmithTrackingServo.easeTo(0, SERVO_SPEED); // Move to 179 degrees at default degrees per second, blocking call
 
   // Initialise GPS and wait to get a valid location
   gps_dev_status = initGPS(UART1, 9600, SERIAL_8N1, PIN_D17, PIN_D16); // Pin 16 (yellow) to GPS rx pin, Pin 17 (green) to GPS tx pin
@@ -147,20 +174,24 @@ void setup()
 
 // Setup time stuff
 #if (ARDUINOTRACE_ENABLE)
-  initEZTime(DEBUG, (uint8_t) GPS_Get_time_hour(), (uint8_t) GPS_Get_time_minute(),(uint8_t) GPS_Get_time_second(), GPS_Get_date_day(), GPS_Get_date_month(), GPS_Get_date_year()); // Debug level can be set to NONE, ERROR, INFO, DEBUG
+  initEZTime(DEBUG, (uint8_t)GPS_Get_time_hour(), (uint8_t)GPS_Get_time_minute(), (uint8_t)GPS_Get_time_second(), GPS_Get_date_day(), GPS_Get_date_month(), GPS_Get_date_year()); // Debug level can be set to NONE, ERROR, INFO, DEBUG
 #else
-  initEZTime(NONE, (uint8_t) GPS_Get_time_hour(), (uint8_t) GPS_Get_time_minute(),(uint8_t) GPS_Get_time_second(), GPS_Get_date_day(), GPS_Get_date_month(), GPS_Get_date_year()); // Debug level can be set to NONE, ERROR, INFO, DEBUG
+  initEZTime(NONE, (uint8_t)GPS_Get_time_hour(), (uint8_t)GPS_Get_time_minute(), (uint8_t)GPS_Get_time_second(), GPS_Get_date_day(), GPS_Get_date_month(), GPS_Get_date_year()); // Debug level can be set to NONE, ERROR, INFO, DEBUG
 #endif
 
-myTZ.setTime((uint8_t) GPS_Get_time_hour(), (uint8_t) GPS_Get_time_minute(),(uint8_t) GPS_Get_time_second(), GPS_Get_date_day(), GPS_Get_date_month(), GPS_Get_date_year());
-
+  
+GMTTZ.setTime((uint8_t)GPS_Get_time_hour(), (uint8_t)GPS_Get_time_minute(), (uint8_t)GPS_Get_time_second(), GPS_Get_date_day(), GPS_Get_date_month(), GPS_Get_date_year());
+// myTZ.setLocation(F("Asia/Bangkok"));
+// myTZ.setPosix(F("ICT-7"));
+GMTTZ.setPosix(F("GMT+0"));  // Time from GPS is GMT
+myTZ.setPosix(F("ICT-7"));  //Convert GMT provided by GPS to local
 }
 
 void loop()
 {
   // put your main code here, to run repeatedly:
   TRACE();
-  events();  // Allows events set by ezTime to be executed.
+  events(); // Allows events set by ezTime to be executed.
   // This displays information every time a new sentence is correctly encoded.
   gps_dev_status = ReadGPS();
   if (gps_dev_status == kGoodGPSRead)
@@ -179,5 +210,46 @@ void loop()
     blinkLED(ESP32_LED_BUILTIN, kErrGPSReadFailure, true); // system will sit here blinking the LED
   }
 
-  jd_delay(5000);
+
+  
+
+
+  // Calculate the sun inclination and azmith
+  // time_t utc = now();
+  // double az, el;
+  jd_azel jd_calc_azel;
+  jd_DateTime jd_curr_date_time;
+
+  jd_curr_date_time.yr = myTZ.year();
+  jd_curr_date_time.mnth = myTZ.month();
+  jd_curr_date_time.day = myTZ.day();
+  jd_curr_date_time.hr = myTZ.hour();
+  jd_curr_date_time.min = myTZ.minute();
+  jd_curr_date_time.sec = myTZ.second();
+  jd_curr_date_time.offset_gmt = myTZ.getOffset();      //Set to Thailand for now ... to sort how to get TZ later
+
+  // calcHorizontalCoordinates(utc, GPS_Get_Lat(), GPS_Get_Lng(), az, el);
+  
+   jd_GetTrackerAzEl( &jd_calc_azel, jd_curr_date_time, GPS_Get_Lat(), GPS_Get_Lng());
+
+
+ 
+
+
+  // Position unit to point at current position of the sun
+// AzmithTrackingServo.easeTo(0, SERVO_SPEED);
+
+DUMP("Setting to face sun");
+  AzmithTrackingServo.easeTo((float)jd_calc_azel.az, SERVO_SPEED); // Move to point at the sun at default degrees per second, blocking call
+DUMP("Facing sun");
+ DUMP(jd_calc_azel.az);
+  DUMP(jd_calc_azel.el);
+  DUMP(jd_curr_date_time.yr);
+  DUMP(jd_curr_date_time.mnth);
+  DUMP(jd_curr_date_time.day);
+  DUMP(jd_curr_date_time.hr);
+  DUMP(jd_curr_date_time.min);
+  DUMP(jd_curr_date_time.sec);
+  DUMP(jd_curr_date_time.offset_gmt);
+  jd_delay(20000);
 }

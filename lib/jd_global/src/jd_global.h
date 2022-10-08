@@ -2,29 +2,29 @@
     #define jd_global
 
     #if !(defined(ESP32))
-        #error This code is intended to run on the ESP32 platform! Please check your Tools->Board setting.
+    #error This code is intended to run on the ESP32 platform! Please check your Tools->Board setting.
     #endif
 
     #ifndef Arduino_h
-        #include <Arduino.h>
+    #include <Arduino.h>
     #endif
-    
+
     #include <ArduinoTrace.h>
 
     // LED blink counts
-#define kErrWiFiFailure 3
-#define kErrWiFiGood 4
-#define kErrAzServoFailure 5
-#define kErrGPSInitFailure 6
-#define kErrGPSReadFailure 7
-#define kWaitingOnGPSFix 8
+    #define kErrWiFiFailure 3
+    #define kErrWiFiGood 4
+    #define kErrAzServoFailure 5
+    #define kErrGPSInitFailure 6
+    #define kErrGPSReadFailure 7
+    #define kWaitingOnGPSFix 8
 
     #ifdef ESP32
         // See file .../hardware/espressif/esp32/variants/(esp32|doitESP32devkitV1)/pins_arduino.h
 
         #define ESP32_LED_BUILTIN 2 // Pin D2 mapped to pin GPIO2/ADC12 of ESP32, control on-board LED
-        #define PIN_LOW 0            // Pin LOW
-        #define PIN_HIGH 1           // Pin HIGH
+        #define PIN_LOW 0           // Pin LOW
+        #define PIN_HIGH 1          // Pin HIGH
 
         #define PIN_D0 0 // Pin D0 mapped to pin GPIO0/BOOT/ADC11/TOUCH1 of ESP32
         #define PIN_D1 1 // Pin D1 mapped to pin GPIO1/TX0 of ESP32
@@ -79,4 +79,16 @@
         #define PIN_SCL 22 // Pin SCL mapped to pin GPIO22/SCL of ESP32
         #define PIN_SDA 21 // Pin SDA mapped to pin GPIO21/SDA of ESP32
     #endif
-#endif // jd_global.h
+
+    struct jd_DateTime
+    {
+        int hr;
+        int min;
+        int sec;
+        int day;
+        int mnth;
+       int yr;
+        float    offset_gmt;    // offset in hours from GMT (Thailand is +7 hrs)
+    };
+
+#endif // jd_global
