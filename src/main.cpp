@@ -1,4 +1,4 @@
-#define ARDUINOTRACE_ENABLE true // Enable ArduinoTrace (false = disable, true = enable)
+#define ARDUINOTRACE_ENABLE false // Enable ArduinoTrace (false = disable, true = enable)
 // #define DOUBLERESETDETECTOR_DEBUG  false // Enable DoubleResetDetector debug output (false = disable, true = enable)
 #include "jd_global.h"
 
@@ -52,7 +52,7 @@ Timezone GMTTZ;
 
 #include "ServoEasing.hpp"
 
-#define START_DEGREE_VALUE 0 // The degree value written to the servo at time of attach.
+#define START_DEGREE_VALUE 180 // The degree value written to the servo at time of attach.
 #define SERVO_SPEED 40       // Servo in degrees per second
 
 ServoEasing AzmithTrackingServo;
@@ -62,6 +62,7 @@ ServoEasing AzmithTrackingServo;
 // General Paramaters
 const int MAX_DEVICE_ID_LEN = 20;
 char deviceID[MAX_DEVICE_ID_LEN];
+const int UPDATE_FREQUENCY = 20000;  // Update frequency in milliseconds
 
 // WiFi SSID & password are set on Setup
 const int MAXSSIDLEN = 32;          // Note this is 31 + null terminator
@@ -130,15 +131,15 @@ void setup()
   }
 
   // Setup the servos
-  AzmithTrackingServo.setSpeed(SERVO_SPEED);  
-  AzmithTrackingServo.setReverseOperation(true);                             // Servo is upside down
+  AzmithTrackingServo.setSpeed(SERVO_SPEED);
+  AzmithTrackingServo.setReverseOperation(true);                               // Servo is upside down
   if (AzmithTrackingServo.attach(PIN_D5, START_DEGREE_VALUE) == INVALID_SERVO) // Set pin to use and initial angle
   {
     // Bad servo connection if here
     DUMP("Cannot connect to Azmith Servo");
     blinkLED(ESP32_LED_BUILTIN, kErrAzServoFailure, true); // system will sit here blinking the LED
   }
-  
+
   jd_delay(500); // Give servo time to get to initial posn
 
   //******** Test servo
@@ -157,7 +158,7 @@ void setup()
   AzmithTrackingServo.easeTo(180, SERVO_SPEED);
   DUMP("180 degrees");
   jd_delay(1000);
- //******** End of Test servo
+  //******** End of Test servo
 
   // AzmithTrackingServo.easeTo(0, SERVO_SPEED); // Move to 179 degrees at default degrees per second, blocking call
 
@@ -179,12 +180,11 @@ void setup()
   initEZTime(NONE, (uint8_t)GPS_Get_time_hour(), (uint8_t)GPS_Get_time_minute(), (uint8_t)GPS_Get_time_second(), GPS_Get_date_day(), GPS_Get_date_month(), GPS_Get_date_year()); // Debug level can be set to NONE, ERROR, INFO, DEBUG
 #endif
 
-  
-GMTTZ.setTime((uint8_t)GPS_Get_time_hour(), (uint8_t)GPS_Get_time_minute(), (uint8_t)GPS_Get_time_second(), GPS_Get_date_day(), GPS_Get_date_month(), GPS_Get_date_year());
-// myTZ.setLocation(F("Asia/Bangkok"));
-// myTZ.setPosix(F("ICT-7"));
-GMTTZ.setPosix(F("GMT+0"));  // Time from GPS is GMT
-myTZ.setPosix(F("ICT-7"));  //Convert GMT provided by GPS to local
+  GMTTZ.setTime((uint8_t)GPS_Get_time_hour(), (uint8_t)GPS_Get_time_minute(), (uint8_t)GPS_Get_time_second(), GPS_Get_date_day(), GPS_Get_date_month(), GPS_Get_date_year());
+  // myTZ.setLocation(F("Asia/Bangkok"));
+  // myTZ.setPosix(F("ICT-7"));
+  GMTTZ.setPosix(F("GMT+0")); // Time from GPS is GMT
+  myTZ.setPosix(F("ICT-7"));  // Convert GMT provided by GPS to local
 }
 
 void loop()
@@ -210,10 +210,6 @@ void loop()
     blinkLED(ESP32_LED_BUILTIN, kErrGPSReadFailure, true); // system will sit here blinking the LED
   }
 
-
-  
-
-
   // Calculate the sun inclination and azmith
   // time_t utc = now();
   // double az, el;
@@ -226,23 +222,19 @@ void loop()
   jd_curr_date_time.hr = myTZ.hour();
   jd_curr_date_time.min = myTZ.minute();
   jd_curr_date_time.sec = myTZ.second();
-  jd_curr_date_time.offset_gmt = myTZ.getOffset();      //Set to Thailand for now ... to sort how to get TZ later
+  jd_curr_date_time.offset_gmt = myTZ.getOffset(); // Set to Thailand for now ... to sort how to get TZ later
 
   // calcHorizontalCoordinates(utc, GPS_Get_Lat(), GPS_Get_Lng(), az, el);
-  
-   jd_GetTrackerAzEl( &jd_calc_azel, jd_curr_date_time, GPS_Get_Lat(), GPS_Get_Lng());
 
-
- 
-
+  jd_GetTrackerAzEl(&jd_calc_azel, jd_curr_date_time, GPS_Get_Lat(), GPS_Get_Lng());
 
   // Position unit to point at current position of the sun
-// AzmithTrackingServo.easeTo(0, SERVO_SPEED);
+  // AzmithTrackingServo.easeTo(0, SERVO_SPEED);
 
-DUMP("Setting to face sun");
+  DUMP("Setting to face sun");
   AzmithTrackingServo.easeTo((float)jd_calc_azel.az, SERVO_SPEED); // Move to point at the sun at default degrees per second, blocking call
-DUMP("Facing sun");
- DUMP(jd_calc_azel.az);
+  DUMP("Facing sun");
+  DUMP(jd_calc_azel.az);
   DUMP(jd_calc_azel.el);
   DUMP(jd_curr_date_time.yr);
   DUMP(jd_curr_date_time.mnth);
@@ -251,5 +243,18 @@ DUMP("Facing sun");
   DUMP(jd_curr_date_time.min);
   DUMP(jd_curr_date_time.sec);
   DUMP(jd_curr_date_time.offset_gmt);
-  jd_delay(20000);
+
+  //******** Set up blinks to let user know working.
+  //** 1 long 3 sec blink followed closely by azmith/20 blinks
+  blinkLED(ESP32_LED_BUILTIN, 0, false);  // OFF
+  blinkLED(ESP32_LED_BUILTIN, 1, false);  // ON
+  jd_delay(3000);
+  blinkLED(ESP32_LED_BUILTIN, 0, false);  // OFF
+  jd_delay(1000);
+
+  blinkLED(ESP32_LED_BUILTIN, jd_calc_azel.az / 20, false);  // Many Blinks
+  
+  //******** End of Set up blinks to let user know working.
+
+  jd_delay(UPDATE_FREQUENCY);
 }

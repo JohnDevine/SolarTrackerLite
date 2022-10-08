@@ -71,3 +71,5 @@ When using ezTime library
 - #define kErrGPSReadFailure 7
 - #define kWaitingOnGPSFix 8
 
+- ** While operating normally 1 long 3 sec blink followed closely by azmith/20 blinks
+

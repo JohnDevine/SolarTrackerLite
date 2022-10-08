@@ -8,7 +8,7 @@
 
     //***************************Blink Status Setup for LED on ESP Board***************************************************************************************
     // Status Blinks
-    #define BLINK_OFF 0 // TURN LED
+    #define BLINK_OFF 0 // TURN LED OFF
     #define BLINK_ON 1 // Turn LED ON
     #define BLINK_WIFI_FAIL 2 // WiFi Did not initialise
     #define BLINK_SENT_MQTT 3 // Message sent off to MQTT server
