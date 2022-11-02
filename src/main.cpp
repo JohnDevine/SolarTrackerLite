@@ -152,7 +152,7 @@ void setup()
   jd_test_servo(&AzmithTrackingServo, SERVO_WAITFOR_PHYSICAL, SERVO_SPEED, 0, 180, 8);
   // Elevation servo
 
-  //-----------
+
   ElevationTrackingServo.setSpeed(SERVO_SPEED);
   // ElevationTrackingServo.setReverseOperation(true);                               // Servo is upside down
   if (ElevationTrackingServo.attach(PIN_D4, START_DEGREE_VALUE) == INVALID_SERVO) // Set pin to use and initial angle
@@ -165,8 +165,10 @@ void setup()
   jd_delay(SERVO_WAITFOR_PHYSICAL); // Give servo time to get to initial posn
 
   //******** Test Elevation servo
-  jd_test_servo(&ElevationTrackingServo, SERVO_WAITFOR_PHYSICAL, SERVO_SPEED, 0, 180, 8);
-  //-----------
+  jd_test_servo(&ElevationTrackingServo, SERVO_WAITFOR_PHYSICAL, SERVO_SPEED, 0, 90, 8);
+ 
+
+
   // Initialise GPS and wait to get a valid location
   gps_dev_status = initGPS(UART1, 9600, SERIAL_8N1, PIN_D17, PIN_D16); // Pin 16 (yellow) to GPS rx pin, Pin 17 (green) to GPS tx pin
 
