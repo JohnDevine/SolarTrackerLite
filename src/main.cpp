@@ -1,4 +1,4 @@
-#define ARDUINOTRACE_ENABLE false // Enable ArduinoTrace (false = disable, true = enable)
+#define ARDUINOTRACE_ENABLE true // Enable ArduinoTrace (false = disable, true = enable)
 // #define DOUBLERESETDETECTOR_DEBUG  false // Enable DoubleResetDetector debug output (false = disable, true = enable)
 #include "jd_global.h"
 
@@ -19,7 +19,7 @@ Timezone GMTTZ;
 // Calculations for sun posn based on time, lat, long
 #include "jd_Sun.h"
 
-//************************  ServoEasing setup ************************************
+//************************  Servo setup ************************************
 // Must specify this BEFORE the include of "ServoEasing.hpp"
 //#define USE_PCA9685_SERVO_EXPANDER    // Activating this enables the use of the PCA9685 I2C expander chip/board.
 //#define USE_SOFT_I2C_MASTER           // Saves 1756 bytes program memory and 218 bytes RAM compared with Arduino Wire
@@ -52,25 +52,32 @@ Timezone GMTTZ;
 
 #include "ServoEasing.hpp"
 
-#define START_DEGREE_VALUE 180 // The degree value written to the servo at time of attach.
-#define SERVO_SPEED 40       // Servo in degrees per second
+#define START_DEGREE_VALUE 0 // The degree value written to the servo at time of attach.
+#define SERVO_SPEED 20         // Servo in degrees per second
 
 ServoEasing AzmithTrackingServo;
+ServoEasing ElevationTrackingServo;
 
-//************************ End of Servo Easing setup ************************************
+#define SERVO_WAITFOR_PHYSICAL 2000 // Delay to wait for servo to move in ms
+
+#include "jd_servo.h"
+
+//************************ End of Servo setup ************************************
 
 // General Paramaters
 const int MAX_DEVICE_ID_LEN = 20;
 char deviceID[MAX_DEVICE_ID_LEN];
-const int UPDATE_FREQUENCY = 20000;  // Update frequency in milliseconds
+const int UPDATE_FREQUENCY = 20000; // Update frequency in milliseconds
 
 // WiFi SSID & password are set on Setup
-const int MAXSSIDLEN = 32;          // Note this is 31 + null terminator
-char ssid[MAXSSIDLEN];              // Content can be changed
-const int MAXPASSLEN = 64;          // Note this is 63 + null terminator
-char esp_password[MAXPASSLEN];      // Content can be changed
-const char *SSID_PREFIX = "ESZ_";   // This format pointer means data CANNOT be changed
-const char *PASSWORD_PREFIX = "JD"; // This format pointer means data CANNOT be changed
+const int MAXSSIDLEN = 32;             // Note this is 31 + null terminator
+char ssid[MAXSSIDLEN];                 // Content can be changed
+const int MAXPASSLEN = 64;             // Note this is 63 + null terminator
+char esp_password[MAXPASSLEN];         // Content can be changed
+const char *SSID_PREFIX = "ESZ_";      // This format pointer means data CANNOT be changed
+const char *PASSWORD_PREFIX = "JD";    // This format pointer means data CANNOT be changed
+bool wifi_connected = false;           // Indicator that wifi is running
+const int CONFIG_PORTAL_TIMEOUT = 120; // How long in seconds to wait for wifi connection
 
 // GPS stuff
 #include "jd_GPS.h"
@@ -78,11 +85,6 @@ int gps_dev_status = 0;
 
 void setup()
 {
-  // put your setup code here, to run once:
-
-  // Serial.begin(115200);
-  // while (!Serial) // wait for serial to come up
-  // ;
 
   ARDUINOTRACE_INIT(115200);
   TRACE();
@@ -115,22 +117,26 @@ void setup()
   // res = wm.autoConnect(); // auto generated AP name from chipid
   // res = wm.autoConnect("AutoConnectAP"); // anonymous ap
   // res = wm.autoConnect("AutoConnectAP", "password"); // password protected ap
-  res = wm.autoConnect(deviceID, esp_password); // password protected ap
+  wm.setConfigPortalTimeout(CONFIG_PORTAL_TIMEOUT); // set to timeout on wifi connection instead of wait forever
+  res = wm.autoConnect(deviceID, esp_password);     // password protected ap
 
   if (!res)
   {
     DUMP("Failed to connect");
-    blinkLED(ESP32_LED_BUILTIN, kErrWiFiFailure, true); // system will sit here blinking the LED
-    ESP.restart();
+    blinkLED(ESP32_LED_BUILTIN, kErrWiFiFailure, false); // system will sit here blinking the LED
+    wifi_connected = false;
+    // ESP.restart();
   }
   else
   {
     // if you get here you have connected to the WiFi
     blinkLED(ESP32_LED_BUILTIN, kErrWiFiGood, false);
+    wifi_connected = true;
     DUMP("connected...yeey :)");
   }
 
   // Setup the servos
+  // Azmith first
   AzmithTrackingServo.setSpeed(SERVO_SPEED);
   AzmithTrackingServo.setReverseOperation(true);                               // Servo is upside down
   if (AzmithTrackingServo.attach(PIN_D5, START_DEGREE_VALUE) == INVALID_SERVO) // Set pin to use and initial angle
@@ -140,28 +146,27 @@ void setup()
     blinkLED(ESP32_LED_BUILTIN, kErrAzServoFailure, true); // system will sit here blinking the LED
   }
 
-  jd_delay(500); // Give servo time to get to initial posn
+  jd_delay(SERVO_WAITFOR_PHYSICAL); // Give servo time to get to initial posn
 
-  //******** Test servo
-  AzmithTrackingServo.easeTo(0, SERVO_SPEED);
-  DUMP("0 degrees");
-  jd_delay(1000);
-  AzmithTrackingServo.easeTo(45, SERVO_SPEED);
-  DUMP("45 degrees");
-  jd_delay(1000);
-  AzmithTrackingServo.easeTo(90, SERVO_SPEED);
-  DUMP("90 degrees");
-  jd_delay(1000);
-  AzmithTrackingServo.easeTo(135, SERVO_SPEED);
-  DUMP("135 degrees");
-  jd_delay(1000);
-  AzmithTrackingServo.easeTo(180, SERVO_SPEED);
-  DUMP("180 degrees");
-  jd_delay(1000);
-  //******** End of Test servo
+  //******** Test Azmith servo
+  jd_test_servo(&AzmithTrackingServo, SERVO_WAITFOR_PHYSICAL, SERVO_SPEED, 0, 180, 8);
+  // Elevation servo
 
-  // AzmithTrackingServo.easeTo(0, SERVO_SPEED); // Move to 179 degrees at default degrees per second, blocking call
+  //-----------
+  ElevationTrackingServo.setSpeed(SERVO_SPEED);
+  // ElevationTrackingServo.setReverseOperation(true);                               // Servo is upside down
+  if (ElevationTrackingServo.attach(PIN_D4, START_DEGREE_VALUE) == INVALID_SERVO) // Set pin to use and initial angle
+  {
+    // Bad servo connection if here
+    DUMP("Cannot connect to Elevation Servo");
+    blinkLED(ESP32_LED_BUILTIN, kErrElServoFailure, true); // system will sit here blinking the LED
+  }
 
+  jd_delay(SERVO_WAITFOR_PHYSICAL); // Give servo time to get to initial posn
+
+  //******** Test Elevation servo
+  jd_test_servo(&ElevationTrackingServo, SERVO_WAITFOR_PHYSICAL, SERVO_SPEED, 0, 180, 8);
+  //-----------
   // Initialise GPS and wait to get a valid location
   gps_dev_status = initGPS(UART1, 9600, SERIAL_8N1, PIN_D17, PIN_D16); // Pin 16 (yellow) to GPS rx pin, Pin 17 (green) to GPS tx pin
 
@@ -196,7 +201,7 @@ void loop()
   gps_dev_status = ReadGPS();
   if (gps_dev_status == kGoodGPSRead)
   {
-    testGPS();
+    // testGPS();
   }
   else if (gps_dev_status == kNoGPSFixYet)
   {
@@ -224,8 +229,6 @@ void loop()
   jd_curr_date_time.sec = myTZ.second();
   jd_curr_date_time.offset_gmt = myTZ.getOffset(); // Set to Thailand for now ... to sort how to get TZ later
 
-  // calcHorizontalCoordinates(utc, GPS_Get_Lat(), GPS_Get_Lng(), az, el);
-
   jd_GetTrackerAzEl(&jd_calc_azel, jd_curr_date_time, GPS_Get_Lat(), GPS_Get_Lng());
 
   // Position unit to point at current position of the sun
@@ -233,6 +236,8 @@ void loop()
 
   DUMP("Setting to face sun");
   AzmithTrackingServo.easeTo((float)jd_calc_azel.az, SERVO_SPEED); // Move to point at the sun at default degrees per second, blocking call
+  ElevationTrackingServo.easeTo((float)jd_calc_azel.el, SERVO_SPEED); // Move to point at the sun at default degrees per second, blocking call
+ 
   DUMP("Facing sun");
   DUMP(jd_calc_azel.az);
   DUMP(jd_calc_azel.el);
@@ -246,14 +251,14 @@ void loop()
 
   //******** Set up blinks to let user know working.
   //** 1 long 3 sec blink followed closely by azmith/20 blinks
-  blinkLED(ESP32_LED_BUILTIN, 0, false);  // OFF
-  blinkLED(ESP32_LED_BUILTIN, 1, false);  // ON
+  blinkLED(ESP32_LED_BUILTIN, 0, false); // OFF
+  blinkLED(ESP32_LED_BUILTIN, 1, false); // ON
   jd_delay(3000);
-  blinkLED(ESP32_LED_BUILTIN, 0, false);  // OFF
+  blinkLED(ESP32_LED_BUILTIN, 0, false); // OFF
   jd_delay(1000);
 
-  blinkLED(ESP32_LED_BUILTIN, jd_calc_azel.az / 20, false);  // Many Blinks
-  
+  blinkLED(ESP32_LED_BUILTIN, jd_calc_azel.az / 20, false); // Many Blinks
+
   //******** End of Set up blinks to let user know working.
 
   jd_delay(UPDATE_FREQUENCY);
