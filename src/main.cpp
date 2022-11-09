@@ -28,6 +28,8 @@ Timezone GMTTZ;
 //#define PROVIDE_ONLY_LINEAR_MOVEMENT  // Activating this disables all but LINEAR movement. Saves up to 1540 bytes program memory.
 #define DISABLE_COMPLEX_FUNCTIONS // Activating this disables the SINE, CIRCULAR, BACK, ELASTIC, BOUNCE and PRECISION easings. Saves up to 1850 bytes program memory.
 #define MAX_EASING_SERVOS 2
+#define ELEVATION_SERVO_PIN PIN_D4
+#define AZMITH_SERVO_PIN PIN_D18
 //#define DISABLE_MICROS_AS_DEGREE_PARAMETER // Activating this disables microsecond values as (target angle) parameter. Saves 128 bytes program memory.
 //#define DISABLE_MIN_AND_MAX_CONSTRAINTS    // Activating this disables constraints. Saves 4 bytes RAM per servo but strangely enough no program memory.
 //#define DISABLE_PAUSE_RESUME               // Activating this disables pause and resume functions. Saves 5 bytes RAM per servo.
@@ -52,8 +54,14 @@ Timezone GMTTZ;
 
 #include "ServoEasing.hpp"
 
-#define START_DEGREE_VALUE 0 // The degree value written to the servo at time of attach.
-#define SERVO_SPEED 20         // Servo in degrees per second
+#define EL_MIN_DEGREE_VALUE 5 // The minimum degree value of the servo
+#define EL_MAX_DEGREE_VALUE 90 // The minimum degree value of the servo
+#define EL_START_DEGREE_VALUE 45 // The degree value written to the elevation servo at time of attach.
+
+#define AZ_MIN_DEGREE_VALUE 0 // The minimum degree value of the servo
+#define AZ_MAX_DEGREE_VALUE 180 // The minimum degree value of the servo
+#define AZ_START_DEGREE_VALUE 0 // The degree value written to the azmith servo at time of attach.
+#define SERVO_SPEED 20       // Servo in degrees per second
 
 ServoEasing AzmithTrackingServo;
 ServoEasing ElevationTrackingServo;
@@ -85,15 +93,56 @@ int gps_dev_status = 0;
 
 void setup()
 {
-
+//************* Setup debugging  **************
   ARDUINOTRACE_INIT(115200);
   TRACE();
   // WiFi.mode(WIFI_STA); // explicitly set mode, esp defaults to STA+AP
   // it is a good practice to make sure your code sets wifi mode how you want it.
 
+//************* Setup the status led **************
   // Initialise the led pin as an output
   init_led(ESP32_LED_BUILTIN);
+//************* Setup the servos  **************
+// Setup Elevation servo
+  ElevationTrackingServo.setSpeed(SERVO_SPEED);
+  // ElevationTrackingServo.setMinMaxConstraint(EL_MIN_DEGREE_VALUE, EL_MAX_DEGREE_VALUE);
+  // ElevationTrackingServo.setReverseOperation(true);                               // if Servo is upside down
+  if (ElevationTrackingServo.attach(ELEVATION_SERVO_PIN, EL_START_DEGREE_VALUE) == INVALID_SERVO) // Set pin to use and initial angle
+  {
+    // Bad servo connection if here
+    DUMP("Cannot connect to Elevation Servo");
+    blinkLED(ESP32_LED_BUILTIN, kErrElServoFailure, true); // system will sit here blinking the LED
+  }
+  jd_delay(SERVO_WAITFOR_PHYSICAL); // Give servo time to get to initial posn
 
+
+  //******** Test Elevation servo
+  jd_test_servo(&ElevationTrackingServo, SERVO_WAITFOR_PHYSICAL, SERVO_SPEED, 20, 90, 4);
+
+  // reset to wait 
+  ElevationTrackingServo.easeTo(EL_START_DEGREE_VALUE, SERVO_SPEED); // Move to point at the sun at default degrees per second, blocking call
+
+  // Setup Azmith ser4vo
+  AzmithTrackingServo.setSpeed(SERVO_SPEED);
+  AzmithTrackingServo.setReverseOperation(true);                               // Servo is upside down
+  // ElevationTrackingServo.setMinMaxConstraint(AZ_MIN_DEGREE_VALUE, AZ_MAX_DEGREE_VALUE);
+  if (AzmithTrackingServo.attach(AZMITH_SERVO_PIN, AZ_START_DEGREE_VALUE) == INVALID_SERVO) // Set pin to use and initial angle
+  {
+    // Bad servo connection if here
+    DUMP("Cannot connect to Azmith Servo");
+    blinkLED(ESP32_LED_BUILTIN, kErrAzServoFailure, true); // system will sit here blinking the LED
+  }
+
+  jd_delay(SERVO_WAITFOR_PHYSICAL); // Give servo time to get to initial posn
+
+  //******** Test Azmith servo
+  jd_test_servo(&AzmithTrackingServo, SERVO_WAITFOR_PHYSICAL, SERVO_SPEED, 0, 180, 4);
+
+  // set to wait for gps
+  AzmithTrackingServo.easeTo(AZ_START_DEGREE_VALUE, SERVO_SPEED);
+
+  
+//************* Setup the WiFi  **************
   // WiFiManager, Local intialization. Once its business is done, there is no need to keep it around
   WiFiManager wm;
 
@@ -135,40 +184,8 @@ void setup()
     DUMP("connected...yeey :)");
   }
 
-  // Setup the servos
-  // Azmith first
-  AzmithTrackingServo.setSpeed(SERVO_SPEED);
-  AzmithTrackingServo.setReverseOperation(true);                               // Servo is upside down
-  if (AzmithTrackingServo.attach(PIN_D5, START_DEGREE_VALUE) == INVALID_SERVO) // Set pin to use and initial angle
-  {
-    // Bad servo connection if here
-    DUMP("Cannot connect to Azmith Servo");
-    blinkLED(ESP32_LED_BUILTIN, kErrAzServoFailure, true); // system will sit here blinking the LED
-  }
-
-  jd_delay(SERVO_WAITFOR_PHYSICAL); // Give servo time to get to initial posn
-
-  //******** Test Azmith servo
-  jd_test_servo(&AzmithTrackingServo, SERVO_WAITFOR_PHYSICAL, SERVO_SPEED, 0, 180, 8);
-  // Elevation servo
-
-
-  ElevationTrackingServo.setSpeed(SERVO_SPEED);
-  // ElevationTrackingServo.setReverseOperation(true);                               // Servo is upside down
-  if (ElevationTrackingServo.attach(PIN_D4, START_DEGREE_VALUE) == INVALID_SERVO) // Set pin to use and initial angle
-  {
-    // Bad servo connection if here
-    DUMP("Cannot connect to Elevation Servo");
-    blinkLED(ESP32_LED_BUILTIN, kErrElServoFailure, true); // system will sit here blinking the LED
-  }
-
-  jd_delay(SERVO_WAITFOR_PHYSICAL); // Give servo time to get to initial posn
-
-  //******** Test Elevation servo
-  jd_test_servo(&ElevationTrackingServo, SERVO_WAITFOR_PHYSICAL, SERVO_SPEED, 0, 90, 8);
- 
-
-
+  
+//************* Setup the GPS  **************
   // Initialise GPS and wait to get a valid location
   gps_dev_status = initGPS(UART1, 9600, SERIAL_8N1, PIN_D17, PIN_D16); // Pin 16 (yellow) to GPS rx pin, Pin 17 (green) to GPS tx pin
 
@@ -179,8 +196,8 @@ void setup()
     DUMP(gps_dev_status);
     blinkLED(ESP32_LED_BUILTIN, kErrGPSInitFailure, true); // system will sit here blinking the LED
   }
+//************* Setup time stuff  **************
 
-// Setup time stuff
 #if (ARDUINOTRACE_ENABLE)
   initEZTime(DEBUG, (uint8_t)GPS_Get_time_hour(), (uint8_t)GPS_Get_time_minute(), (uint8_t)GPS_Get_time_second(), GPS_Get_date_day(), GPS_Get_date_month(), GPS_Get_date_year()); // Debug level can be set to NONE, ERROR, INFO, DEBUG
 #else
@@ -237,9 +254,9 @@ void loop()
   // AzmithTrackingServo.easeTo(0, SERVO_SPEED);
 
   DUMP("Setting to face sun");
-  AzmithTrackingServo.easeTo((float)jd_calc_azel.az, SERVO_SPEED); // Move to point at the sun at default degrees per second, blocking call
+  AzmithTrackingServo.easeTo((float)jd_calc_azel.az, SERVO_SPEED);    // Move to point at the sun at default degrees per second, blocking call
   ElevationTrackingServo.easeTo((float)jd_calc_azel.el, SERVO_SPEED); // Move to point at the sun at default degrees per second, blocking call
- 
+
   DUMP("Facing sun");
   DUMP(jd_calc_azel.az);
   DUMP(jd_calc_azel.el);
